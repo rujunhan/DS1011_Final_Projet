@@ -32,6 +32,8 @@ pa = parser.add_argument
 pa("model_type", choices=models, type=types, help="Give model type.")
 pa("model_name", type=str, help="Give model name, this will name logs and checkpoints made. For example cbow, esim_test etc.")
 
+pa("--cuda", action='store_true', help="cuda")
+
 pa("--datapath", type=str, default="../data")
 pa("--ckptpath", type=str, default="../logs")
 pa("--logpath", type=str, default="../logs")

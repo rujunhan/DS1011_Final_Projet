@@ -24,13 +24,12 @@ class DIIN(nn.Module):
         self.dropout = nn.Dropout(p=0.0)
         if embeddings is not None:
             #print(embeddings.shape)
-
             self.emb = nn.Embedding(embeddings.shape[0], embeddings.shape[1], padding_idx=0)
-            #embeddings = torch.from_numpy(embeddings).type('torch.LongTensor')
             self.emb.weight.data.copy_(torch.from_numpy(embeddings).type('torch.LongTensor'))
-            #print(embeddings.size())
-            #self.emb.weight = embeddings
+            self.emb.weight.requires_grad = True
+
         self.char_emb_init = nn.Embedding(config.char_vocab_size, config.char_emb_size)
+        self.char_emb_init.weight.requires_grad = False
 
     def dropout_rate_decay(self, global_step, decay_rate=0.997):
         p = 1 - 1 * 0.997 ** (global_step / 10000)
