@@ -1,6 +1,6 @@
 import numpy as np
 import os
-import spacy
+#import spacy
 import argparse
 import json
 from collections import Counter
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     parser.add_argument('-source', type=str, default="../intermediate/")
     parser.add_argument('-saveto', type=str, default="../intermediate/")
     parser.add_argument('-save_label', type=str, default='snli_emb')
-    parser.add_argument('-vocab_file', type=str, default='vocabsnli.npy')
+    parser.add_argument('-vocab_file', type=str, default='vocabsnli_trn.npy')
     parser.add_argument('-emb_file', type=str, default='glove.840B.300d.txt')
     args = parser.parse_args()
     main(args)

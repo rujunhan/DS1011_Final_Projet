@@ -196,10 +196,10 @@ if __name__ == '__main__':
     parser.add_argument('-batch', type=int, default=5)
     parser.add_argument('-epochs', type=int, default=1)
     parser.add_argument('-seed', type=int, default=123)
-    parser.add_argument('-lr', type=float, default=0.05)
+    parser.add_argument('-lr', type=float, default=0.001)
     parser.add_argument('-num_classes', type=int, default=3)
     parser.add_argument('-dropout', type=float, default=0.1)
-
+    parser.add_argument('l2', type=float, default=)
     parser.add_argument('-vocab_trn', type=str)
     parser.add_argument('-vocab_dev', type=str)
     parser.add_argument('-vocab_tst', type=str)

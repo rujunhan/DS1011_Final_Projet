@@ -17,10 +17,10 @@ def process(text):
     for i in nlp(text):
         if i.pos_ in ['SPACE', 'PUNCT']:
             continue
-        elif i.pos_ == 'PART':
-            processed.append('_s')
-        elif i.pos_ in ['NUM', 'SYM']:
-            processed.append(i.pos_)
+        #elif i.pos_ == 'PART':
+        #    processed.append('_s')
+        #elif i.pos_ in ['NUM', 'SYM']:
+        #    processed.append(i.pos_)
         else:
             processed.append(i.text)
 
@@ -71,8 +71,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-saveto', type=str, default="../intermediate/")
     parser.add_argument('-source', type=str, default="../snli_1.0/")
-    parser.add_argument('-save_label', type=str, default='snli_tst')
-    parser.add_argument('-parse_file', type=str, default='snli_1.0_test.jsonl')
+    parser.add_argument('-save_label', type=str, default='snli_trn')
+    parser.add_argument('-parse_file', type=str, default='snli_1.0_train.jsonl')
     args = parser.parse_args()
     #parser.parse_file = 'snli_1.0_dev.jsonl'
     #parser.parse_file = 'snli_1.0_test.jsonl'

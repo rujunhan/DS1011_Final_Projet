@@ -10,7 +10,7 @@ from torch.autograd import Variable
 
 class MatchingLayer(nn.Module):
 
-    def __init__(self, embed_dim = 100, epsilon=1e-6, perspective=10, type = 'all'):
+    def __init__(self, embed_dim = 100, epsilon=1e-6, perspective=20, type = 'all'):
         super(MatchingLayer , self).__init__()
         self.epsilon = epsilon
         self.embed_dim = embed_dim
@@ -48,8 +48,22 @@ class MatchingLayer(nn.Module):
         # separate forward states and backward states
         s1_for = s1[:,:,:self.embed_dim]
         s1_back = s1[:,:,self.embed_dim:]
+        inv_idx = torch.arange(s1_back.size(0)-1, -1, -1).long()
+        
+        use_cuda = s1_for.is_cuda
+        #if use_cuda:
+        #    inv_idx = inv_idx.cuda()
+
+        #s1_back = s1_back[inv_idx]
+
         s2_for = s2[:,:, :self.embed_dim]
         s2_back = s2[:,:, self.embed_dim:]
+        #inv_idx = torch.arange(s2_back.size(0)-1, -1, -1).long()
+        
+        #if use_cuda:
+        #    inv_idx = inv_idx.cuda()
+
+        #s2_back = s2_back[inv_idx]
 
         cos_matrix_for = self.cosine_matrix(s1_for, s2_for)
         cos_matrix_back = self.cosine_matrix(s1_back, s2_back)
@@ -57,7 +71,7 @@ class MatchingLayer(nn.Module):
         # full matching
         temp = []
         full_matching_for = self.full_matching(s1_for, s2_for, self.w1)
-        full_matching_back = self.full_matching(s1_back, s2_back, self.w2)
+        full_matching_back = self.full_matching(s1_back, s2_back, self.w2, True)
         temp.append(full_matching_for)
         temp.append(full_matching_back)
         full_matching = torch.cat(temp,2)
@@ -112,6 +126,7 @@ class MatchingLayer(nn.Module):
         cos = (v1 * v2).sum(-1)
         v1_norm = torch.sqrt(torch.sum(v1 ** 2, -1).clamp(min=self.epsilon))
         v2_norm = torch.sqrt(torch.sum(v2 ** 2, -1).clamp(min=self.epsilon))
+        
         return cos / (v1_norm * v2_norm)
 
     def cosine_matrix(self, s1, s2):
@@ -164,7 +179,7 @@ class MatchingLayer(nn.Module):
         out = out.view(-1, batch_size, self.perspective, self.embed_dim)
         return out
 
-    def full_matching(self, s1, s2, w):
+    def full_matching(self, s1, s2, w, backwards = False):
         """
         return full matching strategy result
         :param s1: [n_state1, batch_size, embed_dim]
@@ -172,9 +187,11 @@ class MatchingLayer(nn.Module):
         :param W: [perspective, embed_dim]
         :return: [n_state1, batch_size, perspective]
         """
-
+        if backwards: 
+            s2_last_state = s2[0, :, :]
         # get s2 forward last step hidden vector: [batch_size, embed_dim]
-        s2_last_state = s2[-1, :, :]
+        else:
+            s2_last_state = s2[-1, :, :]
         # get weighted s1: [n_state1, batch_size, perspective, embed_size]
         weighted_s1 = self.element_multiply_states(s1, w)
         # get weighted s2 last state: [batch_size, perspective, embed_size]
@@ -196,7 +213,6 @@ class MatchingLayer(nn.Module):
         weighted_s1 = self.element_multiply_states(s1, w)
         # get weighted s2: [n_state2, batch_size, perspective, embed_size]
         weighted_s2 = self.element_multiply_states(s2, w)
-
         # reshape weighted s1 to [n_state1, 1, batch_size, perspective, embed_size]
         weighted_s1 = weighted_s1.unsqueeze(1)
         # reshape weighted s2 to  [1, n_state2, batch_size, perspective, embed_size]
@@ -252,6 +268,7 @@ class MatchingLayer(nn.Module):
         # concatenate max_x to [n_state1*batch_size]
         max_s = max_s.contiguous().view(-1)
         s = s.contiguous().view(-1, self.embed_dim)
+        
         max_s_vectors = s[max_s]
         result = max_s_vectors.view(-1, batch_size, self.embed_dim)
         return result
@@ -273,7 +290,7 @@ class MatchingLayer(nn.Module):
         return result
 
 
-class ContextLayer(nn.Module):
+class AggregationLayer(nn.Module):
 
     """ Feed a concatenated [WordEmbedding, CharEmbedding] into a BiLSTM layer
 
@@ -287,7 +304,7 @@ class ContextLayer(nn.Module):
 
     """
     def __init__(self, input_size, hidden_size=100,  num_layers = 1, dropout=0.1):
-        super(ContextLayer, self).__init__()
+        super(AggregationLayer, self).__init__()
         self.rnn = nn.LSTM(input_size, hidden_size, num_layers, bias=False, dropout=dropout, bidirectional = True)
 
     def forward(self, x):
@@ -326,7 +343,7 @@ class PredictionLayer(nn.Module):
         out = self.softmax(out)
         return out
 
-
+'''
 if __name__ == '__main__':
     s1 = torch.randn(14, 5, 350)
     s2 = torch.randn(17, 5, 350)
@@ -370,3 +387,4 @@ if __name__ == '__main__':
     print(prediction.size())
     out = pre(prediction)
     print(out)
+'''

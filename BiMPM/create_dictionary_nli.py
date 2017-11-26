@@ -17,10 +17,10 @@ def process(text):
     for i in nlp(text):
         if i.pos_ in ['SPACE', 'PUNCT']:
             continue
-        elif i.pos_ == 'PART':
-            processed.append('_s')
-        elif i.pos_ in ['NUM', 'SYM']:
-            processed.append(i.pos_)
+        #elif i.pos_ == 'PART':
+        #    processed.append('_s')
+        #elif i.pos_ in ['NUM', 'SYM']:
+        #    processed.append(i.pos_)
         else:
             processed.append(i.text)
 
@@ -39,7 +39,8 @@ def main(args):
         count += 1
         for line in file:
             d = json.loads(line)
-            label = Counter(d['annotator_labels']).most_common(1)[0][0]
+            label = d['gold_label']
+
             f.write(label+"\t")  
 
             s1 = process(d['sentence1'].lower())
@@ -87,7 +88,8 @@ if __name__ == "__main__":
     parser.add_argument('-parse_file', type=str, default='snli_1.0_test.jsonl')
     args = parser.parse_args()
     #parser.parse_file = 'snli_1.0_dev.jsonl'
-    #parser.parse_file = 'snli_1.0_test.jsonl'
+    #parser.parse_file = 'snli_1.0_train.jsonl'
+    print(args)
     main(args)
 
 

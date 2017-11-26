@@ -17,9 +17,9 @@ import argparse
 from sklearn.manifold import TSNE
 import random
 
-from bilstm import Batch
-from bilstm import loadData,loadData_sample, all_vocab_emb, test_model
-from MultiPerspective_Matching import MatchingLayer, ContextLayer, PredictionLayer
+from datastream import Batch
+from datastream import loadData,loadData_sample, all_vocab_emb, test_model
+from MultiPerspective_Matching import MatchingLayer, AggregationLayer, PredictionLayer
 
 
 class BiMPM(nn.Module):
@@ -35,13 +35,13 @@ class BiMPM(nn.Module):
 
         self.hid_size = args.hid
         self.batch_size = args.batch
-        self.num_layers = args.num_layers
         self.num_classes = args.num_classes
         self.dropout = args.dropout
+        self.num_context_layers = args.num_context_layers
         self.sent_length = 0
         self.word_length = 0
         self.epsilon = 1e-6
-        self.perspective = 10
+        self.perspective = args.perspective
 
         self.use_cuda = args.cuda
         ### embedding layer
@@ -55,23 +55,25 @@ class BiMPM(nn.Module):
         self.emb_char = nn.Embedding(self.num_chars + 1, self.char_embed_size)
         self.emb_char.weight = Parameter(torch.FloatTensor(self.num_chars + 1, self.char_embed_size).uniform_(-1, 1))
 
-        self.char_representation = nn.LSTM(self.char_embed_size, self.char_size, self.num_layers, bias=False,
+        self.char_representation = nn.LSTM(self.char_embed_size, self.char_size, args.num_context_layers, dropout = self.dropout, bias=False,
                                            bidirectional=False)
         self.char_hid = self.init_hidden_chars()
 
 
         ### lstm layer
-        self.lstm_s1 = nn.LSTM(self.embed_size+self.char_size, self.hid_size, self.num_layers, bias = False, bidirectional=True)
-        self.lstm_s2 = nn.LSTM(self.embed_size+self.char_size, self.hid_size, self.num_layers, bias = False, bidirectional=True)
+        self.lstm_s1 = nn.LSTM(self.embed_size+self.char_size, self.hid_size, args.num_context_layers, bias = False, dropout=self.dropout, bidirectional=True)
+        self.lstm_s2 = nn.LSTM(self.embed_size+self.char_size, self.hid_size, args.num_context_layers, bias = False, dropout=self.dropout, bidirectional=True)
 
         self.s1_hid = self.init_hidden(self.batch_size)
         self.s2_hid = self.init_hidden(self.batch_size)
 
 
+        ### dropout layer
+        self.dropout_layer = nn.Dropout(p=self.dropout)
+
         ### other layers
-        self.context = ContextLayer(input_size=self.embed_size+self.char_size, hidden_size=self.hid_size, num_layers = self.num_layers)
         self.matching = MatchingLayer(embed_dim=self.hid_size, epsilon=self.epsilon, perspective=self.perspective, type='all')
-        self.aggregation = ContextLayer(input_size=8 * self.perspective, hidden_size=self.hid_size, dropout=self.dropout)
+        self.aggregation = AggregationLayer(input_size=8 * self.perspective, hidden_size=self.hid_size, num_layers=args.num_aggr_layers, dropout=self.dropout)
         self.pre = PredictionLayer(input_size =4 * self.hid_size, hidden_size = self.hid_size, output_size=self.num_classes, dropout = self.dropout)
 
     def init_hidden(self, batch_size):
@@ -80,19 +82,19 @@ class BiMPM(nn.Module):
         # why they have this dimensionality.
         # The axes semantics are (num_layers, minibatch_size, hidden_dim)
         if self.use_cuda:
-            return (Variable(torch.zeros(self.num_layers * 2, batch_size, self.hid_size)).cuda(),
-                    Variable(torch.zeros(self.num_layers * 2, batch_size, self.hid_size)).cuda())
+            return (Variable(torch.zeros(self.num_context_layers * 2, batch_size, self.hid_size)).cuda(),
+                    Variable(torch.zeros(self.num_context_layers * 2, batch_size, self.hid_size)).cuda())
         else:
-            return (Variable(torch.zeros(self.num_layers * 2, batch_size, self.hid_size)),
-                    Variable(torch.zeros(self.num_layers * 2, batch_size, self.hid_size)))
+            return (Variable(torch.zeros(self.num_context_layers * 2, batch_size, self.hid_size)),
+                    Variable(torch.zeros(self.num_context_layers * 2, batch_size, self.hid_size)))
 
     def init_hidden_chars(self):
         if self.use_cuda:
-            return (Variable(torch.zeros(self.num_layers, self.sent_length, self.char_size)).cuda(),
-                    Variable(torch.zeros(self.num_layers, self.sent_length, self.char_size)).cuda())
+            return (Variable(torch.zeros(self.num_context_layers, self.sent_length, self.char_size)).cuda(),
+                    Variable(torch.zeros(self.num_context_layers, self.sent_length, self.char_size)).cuda())
         else:
-            return (Variable(torch.zeros(self.num_layers, self.sent_length, self.char_size)),
-                    Variable(torch.zeros(self.num_layers, self.sent_length, self.char_size)))
+            return (Variable(torch.zeros(self.num_context_layers, self.sent_length, self.char_size)),
+                    Variable(torch.zeros(self.num_context_layers, self.sent_length, self.char_size)))
 
     def forward(self, labels, s1, s2, ch1, ch2):
 
@@ -133,16 +135,28 @@ class BiMPM(nn.Module):
 
         all_char2 = torch.cat(all_char2, 1)
 
-        ### Context Layer
 
+        ## Dropout after representation layer
+        s1_input = self.dropout_layer(torch.cat([s1_emb, all_char1], 2))
+        s2_input = self.dropout_layer(torch.cat([s2_emb, all_char2], 2))
+        
+
+        ### Context Layer
         self.s1_hid = self.init_hidden(batch_size)
         self.s2_hid = self.init_hidden(batch_size)
         out1, _ = self.lstm_s1(torch.cat([s1_emb, all_char1], 2), self.s1_hid)
         out2, _ = self.lstm_s2(torch.cat([s2_emb, all_char2], 2), self.s2_hid)
 
+        
+        ### Matching Layer
         out3 = self.matching(out1, out2)
         out4 = self.matching(out2, out1)
 
+        ## Dropout after matching                                                                 
+        out1 = self.dropout_layer(out1)
+        out2 = self.dropout_layer(out2)
+
+        ### Aggregation Layer
         out5, _ = self.aggregation(out3)
         out6, _ = self.aggregation(out4)
 
@@ -157,15 +171,13 @@ class BiMPM(nn.Module):
 
         return out
 
-
-
 def main(args):
     vocab, emb, vocab_chars = all_vocab_emb(args)
 
     batch_size = args.batch
 
     data = loadData(vocab, args)
-    #data = loadData_sample(vocab,100, args)
+    #data = loadData_sample(vocab,10000, args)
     random.shuffle(data)
 
     n_batch = int(np.ceil(len(data) / batch_size))
@@ -181,8 +193,7 @@ def main(args):
     criterion = nn.CrossEntropyLoss()
     losses = []
     eval_acc_hist = []
-
-    #optimizer = optim.Adagrad(model.parameters(), lr=args.lr)
+    train_acc_hist = []
 
     print("start training model...\n")
     start_time = time.time()
@@ -190,7 +201,7 @@ def main(args):
     for epoch in range(args.epochs):
         model.train()
         total_loss = 0
-
+        correct = 0
         for labels, s1, s2, ch1, ch2 in batch:
 
             if args.cuda:
@@ -205,27 +216,34 @@ def main(args):
             loss = criterion(out, labels)
 
             loss.backward()
+            torch.nn.utils.clip_grad_norm(model.parameters(), args.clipper)
             optimizer.step()
 
             total_loss += loss.data.cpu().numpy()[0]
 
+            predicted = (out.data.max(1)[1]).long().view(-1) 
+            correct += (predicted == labels.data).sum()
+            
         ave_loss = total_loss / n_batch
         print("average trainning loss is: %s" % str(ave_loss))
         losses.append(ave_loss)
-
+        
+        train_acc = 100 * correct / len(data)
+        train_acc_hist.append(train_acc)
+        
         ### evaluate the model after each epoch
         eval_data = loadData(vocab, args, mode='eval')
         eval_batch = Batch(eval_data, batch_size, vocab, vocab_chars)
         eval_acc = test_model(model, eval_batch, args)
         eval_acc_hist.append(eval_acc)
-        print("completed epoch %s, evaluation loss is: %s %%" % (epoch, round(eval_acc, 2)))
+        print("completed epoch %s, training accuracy is: %s %%, evaluation accuracy is: %s %%" % (epoch, round(train_acc, 2), round(eval_acc, 2)))
         end_time = time.time()
         print("%s seconds elapsed" % str(end_time - start_time))
-
-
     
     print("training loss history: ")
     print(losses)
+    print("training accuracy history: ")
+    print(train_acc_hist)
     print("evaluation accuracy history: ")
     print(eval_acc_hist)
     test_data = loadData(vocab, args, mode='test')
@@ -237,14 +255,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-emb', type=int, default=300)
     parser.add_argument('-hid', type=int, default=100)
-    parser.add_argument('-num_layers', type=int, default=1)
+    parser.add_argument('-num_context_layers', type=int, default=1)
+    parser.add_argument('-num_aggr_layers', type=int, default=2)
     parser.add_argument('-batch', type=int, default=60)
-    parser.add_argument('-epochs', type=int, default=10)
+    parser.add_argument('-epochs', type=int, default=30)
     parser.add_argument('-seed', type=int, default=123)
     parser.add_argument('-lr', type=float, default=0.001)
+    parser.add_argument('-lambda_l2', type=float, default=0)
+    parser.add_argument('-clipper', type=float, default=50.0)
     parser.add_argument('-num_classes', type=int, default=3)
     parser.add_argument('-dropout', type=float, default=0.1)
-
+    parser.add_argument('-perspective', type=int, default=10)
     parser.add_argument('-vocab_trn', type=str)
     parser.add_argument('-vocab_dev', type=str)
     parser.add_argument('-vocab_tst', type=str)
@@ -288,4 +309,5 @@ if __name__ == '__main__':
 
     args.cuda = True
 
+    print('no lamba_l2, train with pers = 10, num_layer_aggr = 2, add dropout layers for all \n')
     main(args)
