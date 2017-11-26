@@ -144,8 +144,8 @@ class BiMPM(nn.Module):
         ### Context Layer
         self.s1_hid = self.init_hidden(batch_size)
         self.s2_hid = self.init_hidden(batch_size)
-        out1, _ = self.lstm_s1(torch.cat([s1_emb, all_char1], 2), self.s1_hid)
-        out2, _ = self.lstm_s2(torch.cat([s2_emb, all_char2], 2), self.s2_hid)
+        out1, _ = self.lstm_s1(s1_input, self.s1_hid)
+        out2, _ = self.lstm_s2(s2_input, self.s2_hid)
 
         
         ### Matching Layer
@@ -153,8 +153,8 @@ class BiMPM(nn.Module):
         out4 = self.matching(out2, out1)
 
         ## Dropout after matching                                                                 
-        out1 = self.dropout_layer(out1)
-        out2 = self.dropout_layer(out2)
+        out3 = self.dropout_layer(out3)
+        out4 = self.dropout_layer(out4)
 
         ### Aggregation Layer
         out5, _ = self.aggregation(out3)
