@@ -51,19 +51,9 @@ class MatchingLayer(nn.Module):
         inv_idx = torch.arange(s1_back.size(0)-1, -1, -1).long()
         
         use_cuda = s1_for.is_cuda
-        #if use_cuda:
-        #    inv_idx = inv_idx.cuda()
-
-        #s1_back = s1_back[inv_idx]
 
         s2_for = s2[:,:, :self.embed_dim]
         s2_back = s2[:,:, self.embed_dim:]
-        #inv_idx = torch.arange(s2_back.size(0)-1, -1, -1).long()
-        
-        #if use_cuda:
-        #    inv_idx = inv_idx.cuda()
-
-        #s2_back = s2_back[inv_idx]
 
         cos_matrix_for = self.cosine_matrix(s1_for, s2_for)
         cos_matrix_back = self.cosine_matrix(s1_back, s2_back)
