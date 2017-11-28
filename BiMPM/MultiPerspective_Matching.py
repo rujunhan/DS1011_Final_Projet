@@ -335,11 +335,13 @@ class PredictionLayer(nn.Module):
         self.linear2 = nn.Linear(hidden_size, output_size)
         self.dropout = nn.Dropout(p=dropout)
         self.softmax = nn.Softmax()
+        self.act = nn.Tanh()
 
     def forward(self, x):
         out = self.linear1(x)
-        out = self.linear2(out)
+        out = self.act(out)
         out = self.dropout(out)
+        out = self.linear2(out)
         out = self.softmax(out)
         return out
 
