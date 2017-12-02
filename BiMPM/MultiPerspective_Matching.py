@@ -51,19 +51,9 @@ class MatchingLayer(nn.Module):
         inv_idx = torch.arange(s1_back.size(0)-1, -1, -1).long()
         
         use_cuda = s1_for.is_cuda
-        #if use_cuda:
-        #    inv_idx = inv_idx.cuda()
-
-        #s1_back = s1_back[inv_idx]
 
         s2_for = s2[:,:, :self.embed_dim]
         s2_back = s2[:,:, self.embed_dim:]
-        #inv_idx = torch.arange(s2_back.size(0)-1, -1, -1).long()
-        
-        #if use_cuda:
-        #    inv_idx = inv_idx.cuda()
-
-        #s2_back = s2_back[inv_idx]
 
         cos_matrix_for = self.cosine_matrix(s1_for, s2_for)
         cos_matrix_back = self.cosine_matrix(s1_back, s2_back)
@@ -335,56 +325,13 @@ class PredictionLayer(nn.Module):
         self.linear2 = nn.Linear(hidden_size, output_size)
         self.dropout = nn.Dropout(p=dropout)
         self.softmax = nn.Softmax()
+        self.act = nn.Tanh()
 
     def forward(self, x):
         out = self.linear1(x)
-        out = self.linear2(out)
+        out = self.act(out)
         out = self.dropout(out)
+        out = self.linear2(out)
         out = self.softmax(out)
         return out
 
-'''
-if __name__ == '__main__':
-    s1 = torch.randn(14, 5, 350)
-    s2 = torch.randn(17, 5, 350)
-    batch_size = 5
-    embed_size = 100
-    perspective = 50
-    hidden_size = 100
-    n_layers = 1
-
-    s1 = Variable(s1)
-    s2 = Variable(s2)
-
-    context = ContextLayer(input_size = 350, hidden_size=100)
-    matching = MatchingLayer(embed_dim=100, epsilon=1e-6, perspective=50, type = 'all')
-    aggregation = ContextLayer(input_size = 8*perspective, hidden_size=100,  dropout=0.1)
-    pre = PredictionLayer(input_size=4*hidden_size, hidden_size=100, output_size=3, dropout=0.1)
-
-    out1, _ = context(s1)
-    out2, _ = context(s2)
-    # [n_state, batch_size, 2*hidden_size]
-    print(out1.size())
-    print(out2.size())
-    out3 = matching(out1, out2)
-    out4 = matching(out2, out1)
-    # [n_state, batch_size, 8*perspective]
-    print(out3.size())
-    print(out4.size())
-    out5, _ = aggregation(out3)
-    out6, _ = aggregation(out4)
-    #[n_state, batch_size, 2*hidden_size]
-    print(out5.size())
-    print(out6.size())
-    # get fixed-length vector from the last time-step of the BiLSTM model
-    pre_list = []
-    pre_list.append(out5[-1, :, :hidden_size]) # last timestamp from forward
-    pre_list.append(out5[0, :, hidden_size:]) # last timestamp from backward
-    pre_list.append(out6[-1, :, :hidden_size])
-    pre_list.append(out6[0, :, :hidden_size])
-    prediction = torch.cat(pre_list, -1)
-    # [batch_size, 4*hidden_size]
-    print(prediction.size())
-    out = pre(prediction)
-    print(out)
-'''

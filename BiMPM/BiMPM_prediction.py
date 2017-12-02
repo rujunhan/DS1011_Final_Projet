@@ -71,8 +71,8 @@ class BiMPM(nn.Module):
                                bidirectional=True)
         #self.lstm_s2 = nn.LSTM(self.embed_size+self.char_size, self.hid_size, args.num_context_layers, bias = False, dropout=self.dropout, bidirectional=True)
 
-        self.s1_hid = self.init_hidden(self.batch_size)
-        self.s2_hid = self.init_hidden(self.batch_size)
+        #self.s1_hid = self.init_hidden(self.batch_size)
+        #self.s2_hid = self.init_hidden(self.batch_size)
 
 
         ### dropout layer
@@ -179,7 +179,8 @@ class BiMPM(nn.Module):
         ## Dropout after representation layer
         s1_input = self.dropout_layer(torch.cat([s1_emb, all_char1], 2))
         s2_input = self.dropout_layer(torch.cat([s2_emb, all_char2], 2))
-        
+        #s1_input = torch.cat([s1_emb, all_char1], 2)
+        #s2_input = torch.cat([s2_emb, all_char2], 2)
 
         ### Context Layer
         #self.s1_hid = self.init_hidden(batch_size)
@@ -234,6 +235,7 @@ def main(args):
     for arg in vars(args):
         logger.info(str(arg) + ' ' + str(getattr(args, arg)))
 
+    logger.info('keeping dropout layers with updated matching layers')
     # load train/dev/test data
     # train data
     logger.info('loading data...')
@@ -243,8 +245,8 @@ def main(args):
 
     batch_size = args.batch
 
-    #data = loadData(vocab, args)
-    data = loadData_sample(vocab,10000, args)
+    data = loadData(vocab, args)
+    #data = loadData_sample(vocab,10000, args)
     random.shuffle(data)
 
     n_batch = int(np.ceil(len(data) / batch_size))
@@ -289,7 +291,7 @@ def main(args):
             predicted = (out.data.max(1)[1]).long().view(-1)
             correct += (predicted == labels.data).sum()
 
-            if batch.start % 100 == 0:
+            if batch.start % 50000 == 0:
                 logger.info("training epoch %s: completed %s %%" % (str(epoch), str(round(100 * batch.start / len(data), 2))))
                 logger.info("current training loss %.3f: " % loss.data.cpu().numpy()[0])
 
@@ -312,7 +314,6 @@ def main(args):
         logger.info("completed epoch %s, training accuracy is: %s %%, evaluation accuracy is: %s %%" % (epoch, round(train_acc, 2), round(eval_acc, 2)))
         end_time = time.time()
         logger.info("%s seconds elapsed" % str(end_time - start_time))
-
     
     logger.info("training loss history: ")
     logger.info(losses)
@@ -332,9 +333,9 @@ if __name__ == '__main__':
     parser.add_argument('-num_context_layers', type=int, default=1)
     parser.add_argument('-num_aggr_layers', type=int, default=1)
     parser.add_argument('-batch', type=int, default=60)
-    parser.add_argument('-epochs', type=int, default=10)
+    parser.add_argument('-epochs', type=int, default=20)
     parser.add_argument('-seed', type=int, default=123)
-    parser.add_argument('-lr', type=float, default=0.001)
+    parser.add_argument('-lr', type=float, default=0.0005)
     parser.add_argument('-lambda_l2', type=float, default=0)
     parser.add_argument('-clipper', type=float, default=5.0)
     parser.add_argument('-num_classes', type=int, default=3)
@@ -361,7 +362,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--log_dir', type=str, default='../log')
 
-    parser.add_argument('--log_fname', type=str, default='gradClamp_combinelayer.log')
+    parser.add_argument('--log_fname', type=str, default='test4.log')
 
     args = parser.parse_args()
 
@@ -385,7 +386,7 @@ if __name__ == '__main__':
 
     args.emb_file = "snli.npy"
 
-    args.cuda = False
+    args.cuda = True
 
-    print('no lamba_l2, train with pers = 10, num_layer_aggr = 1, add dropout layers for all \n')
+    print('no lamba_l2, train with pers = 20, num_layer_aggr = 1, keep dropout layers for all \n')
     main(args)
