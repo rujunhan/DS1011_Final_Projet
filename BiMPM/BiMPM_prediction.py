@@ -49,8 +49,6 @@ class BiMPM(nn.Module):
         self.emb.weight = Parameter(torch.FloatTensor(emb))
         self.emb.weight.requires_grad = False
 
-
-        ### character representation
         ### character representation
         self.emb_char = nn.Embedding(self.num_chars + 1, self.char_embed_size)
         self.emb_char.weight = Parameter(torch.FloatTensor(self.num_chars + 1, self.char_embed_size).uniform_(-1, 1))
@@ -61,7 +59,7 @@ class BiMPM(nn.Module):
                                            dropout = self.dropout,
                                            bias=False,
                                            bidirectional=False)
-        #self.char_hid = self.init_hidden_chars()
+
 
         ### lstm layer
         self.lstm_s1 = nn.LSTM(self.embed_size+self.char_size,
@@ -69,7 +67,12 @@ class BiMPM(nn.Module):
                                bias = False,
                                dropout=self.dropout,
                                bidirectional=True)
-        #self.lstm_s2 = nn.LSTM(self.embed_size+self.char_size, self.hid_size, args.num_context_layers, bias = False, dropout=self.dropout, bidirectional=True)
+
+        self.lstm_s2 = nn.LSTM(self.embed_size+self.char_size, 
+                               self.hid_size, args.num_context_layers, 
+                               bias = False, 
+                               dropout=self.dropout,
+                               bidirectional=True)
 
         #self.s1_hid = self.init_hidden(self.batch_size)
         #self.s2_hid = self.init_hidden(self.batch_size)
@@ -106,12 +109,24 @@ class BiMPM(nn.Module):
 
     def init_hidden_chars(self):
         if self.use_cuda:
-            return (Variable(torch.zeros(self.num_context_layers, self.sent_length, self.char_size)).cuda(),
-                    Variable(torch.zeros(self.num_context_layers, self.sent_length, self.char_size)).cuda())
+            return (Variable(torch.zeros(self.num_context_layers, self.sent_length, self.\
+char_size)).cuda(),
+                    Variable(torch.zeros(self.num_context_layers, self.sent_length, self.\
+char_size)).cuda())
         else:
-            return (Variable(torch.zeros(self.num_context_layers, self.sent_length, self.char_size)),
-                    Variable(torch.zeros(self.num_context_layers, self.sent_length, self.char_size)))
-
+            return (Variable(torch.zeros(self.num_context_layers, self.sent_length, self.\
+char_size)),
+                    Variable(torch.zeros(self.num_context_layers, self.sent_length, self.\
+char_size)))
+    '''
+    def init_hidden_chars(self):
+        if self.use_cuda:
+            return (Variable(torch.zeros(self.num_context_layers, self.batch_size, self.char_size)).cuda(),
+                    Variable(torch.zeros(self.num_context_layers, self.batch_size, self.char_size)).cuda())
+        else:
+            return (Variable(torch.zeros(self.num_context_layers, self.batch_size, self.char_size)),
+                    Variable(torch.zeros(self.num_context_layers, self.batch_size, self.char_size)))
+    '''
     def forward(self, labels, s1, s2, ch1, ch2):
 
         use_cuda = self.emb.weight.is_cuda
@@ -123,7 +138,6 @@ class BiMPM(nn.Module):
         s2_emb = self.emb(s2)
 
         ### create character representations through LSTM
-
         # s1
         self.word_length = ch1.size()[1]
         self.sent_length = ch1.size()[2]
@@ -154,10 +168,12 @@ class BiMPM(nn.Module):
         all_char1 = []
         for ch in range(ch1.size()[0]):
             ch_emb = self.emb_char(ch1[ch, :, :].squeeze(0))
+
             self.char_hid = self.init_hidden_chars()
+
             _, s1_chr = self.char_representation(ch_emb, self.char_hid)
-            # the first element of s1_chr is the last hidden state
-            # we use this as character embedding
+            # the first element of s1_chr is the last hidden state                   
+            # we use this as character embedding                                     
             all_char1.append(s1_chr[0].squeeze(0).unsqueeze(1))
         all_char1 = torch.cat(all_char1, 1)
 
@@ -173,20 +189,17 @@ class BiMPM(nn.Module):
             all_char2.append(s2_chr[0].squeeze(0).unsqueeze(1))
 
         all_char2 = torch.cat(all_char2, 1)
-
         """
 
-        ## Dropout after representation layer
         s1_input = self.dropout_layer(torch.cat([s1_emb, all_char1], 2))
         s2_input = self.dropout_layer(torch.cat([s2_emb, all_char2], 2))
-        #s1_input = torch.cat([s1_emb, all_char1], 2)
-        #s2_input = torch.cat([s2_emb, all_char2], 2)
 
         ### Context Layer
         #self.s1_hid = self.init_hidden(batch_size)
         #self.s2_hid = self.init_hidden(batch_size)
         out1, _ = self.lstm_s1(s1_input)
         out2, _ = self.lstm_s1(s2_input)
+
 
         
         ### Matching Layer
@@ -212,9 +225,27 @@ class BiMPM(nn.Module):
 
         return out
 
+def save_checkpoint(state, filename='checkpoint.pth.tar'):
+    torch.save(state, filename)
+
+def load_checkpoint(model, optimizer, best_model_file):
+
+    if os.path.isfile(best_model_file):
+
+        print("=> loading checkpoint '{}'".format(best_model_file))
+        checkpoint = torch.load(best_model_file)
+        start_epoch = checkpoint['epoch']
+        best_val_acc = checkpoint['best_val_acc']
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        print("=> loaded checkpoint '{}' (epoch {})"
+            .format(best_model_file, checkpoint['epoch']))
+    else:
+        print("=> no checkpoint found at '{}'".format(best_model_file))
+    return model, optimizer
+
 def main(args):
     
-
     # initialize the logger
     # create logger
     logger_name = "mylog"
@@ -235,18 +266,16 @@ def main(args):
     for arg in vars(args):
         logger.info(str(arg) + ' ' + str(getattr(args, arg)))
 
-    logger.info('keeping dropout layers with updated matching layers')
     # load train/dev/test data
     # train data
     logger.info('loading data...')
-
 
     vocab, emb, vocab_chars = all_vocab_emb(args)
 
     batch_size = args.batch
 
-    data = loadData(vocab, args)
-    #data = loadData_sample(vocab,10000, args)
+    #data = loadData(vocab, args)
+    data = loadData_sample(vocab,100, args)
     random.shuffle(data)
 
     n_batch = int(np.ceil(len(data) / batch_size))
@@ -261,6 +290,7 @@ def main(args):
     para = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
+
     losses = []
     eval_acc_hist = []
     train_acc_hist = []
@@ -269,6 +299,7 @@ def main(args):
     logger.info("start training model...\n")
     start_time = time.time()
     count = 0
+
     for epoch in range(args.epochs):
         model.train()
         total_loss = 0
@@ -297,7 +328,7 @@ def main(args):
 
         ave_loss = total_loss / n_batch
         logger.info("average trainning loss is: %s" % str(ave_loss))
-        losses.append(ave_loss)
+
         
         train_acc = 100 * correct / len(data)
         train_acc_hist.append(train_acc)
@@ -306,10 +337,21 @@ def main(args):
         eval_data = loadData(vocab, args, mode='eval')
         eval_batch = Batch(eval_data, batch_size, vocab, vocab_chars)
         eval_acc = test_model(model, eval_batch, args)
+
+        best_model_file = args.saveto + args.best_model
+
         if eval_acc > best_acc:
-            model_fname = '%s_epoch-%d_val-acc-%.3f' % (args.log_fname.split('.')[0], epoch, eval_acc)
-            torch.save(model.state_dict(), model_fname + 'bimpm.pt')
+
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'args': args,
+                'state_dict': model.state_dict(),
+                'best_val_acc': eval_acc,
+                'optimizer' : optimizer.state_dict(),
+            }, best_model_file)
+
             best_acc = eval_acc
+
         eval_acc_hist.append(eval_acc)
         logger.info("completed epoch %s, training accuracy is: %s %%, evaluation accuracy is: %s %%" % (epoch, round(train_acc, 2), round(eval_acc, 2)))
         end_time = time.time()
@@ -321,9 +363,13 @@ def main(args):
     logger.info(train_acc_hist)
     logger.info("evaluation accuracy history: ")
     logger.info(eval_acc_hist)
+
     test_data = loadData(vocab, args, mode='test')
     test_batch = Batch(test_data, batch_size, vocab, vocab_chars)
+
+    model, _ = load_checkpoint(model, optimizer, best_model_file)
     test_acc = test_model(model, test_batch, args)
+    
     logger.info("testing accuracy is: %s %%" % test_acc)
 
 if __name__ == '__main__':
@@ -333,7 +379,9 @@ if __name__ == '__main__':
     parser.add_argument('-num_context_layers', type=int, default=1)
     parser.add_argument('-num_aggr_layers', type=int, default=1)
     parser.add_argument('-batch', type=int, default=60)
+
     parser.add_argument('-epochs', type=int, default=20)
+
     parser.add_argument('-seed', type=int, default=123)
     parser.add_argument('-lr', type=float, default=0.0005)
     parser.add_argument('-lambda_l2', type=float, default=0)
@@ -351,7 +399,8 @@ if __name__ == '__main__':
     parser.add_argument('-file_dev', type=str)
     parser.add_argument('-file_tst', type=str)
     parser.add_argument('-file_emb', type=str)
-
+    
+    parser.add_argument('-best_model', type=str, default='best_model.path.tar')
     parser.add_argument('-source', type=str)
     parser.add_argument('-saveto', type=str)
 
@@ -386,7 +435,8 @@ if __name__ == '__main__':
 
     args.emb_file = "snli.npy"
 
-    args.cuda = True
+    args.best_model_file = 'best_model_1102.path.tar'
 
-    print('no lamba_l2, train with pers = 20, num_layer_aggr = 1, keep dropout layers for all \n')
+    args.cuda = False
+
     main(args)
