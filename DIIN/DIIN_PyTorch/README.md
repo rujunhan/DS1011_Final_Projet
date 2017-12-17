@@ -1,6 +1,6 @@
 # DIIN_PyTorch
 
-  We followed the idea of DIIN and implemented the code from in Pytorch: https://github.com/YichenGong/Densely-Interactive-Inference-Network
+  We followed the idea from: : https://github.com/YichenGong/Densely-Interactive-Inference-Network and reimplemented the code in Pytorch.
 
   To implement our code, you can follow the instructions from: https://github.com/YichenGong/Densely-Interactive-Inference-Network to set up environment and download data.
 
@@ -11,4 +11,4 @@
 # To run the code: 
  
 `` cd DIIN/DIIN_PyTorch/pytorch/trian_snli_pytorch.py``
-``python train_mnli_pytorch.py DIIN_pytorch demo_testing_SNLI --training_completely_on_snli --debug_model ``
+``python train_mnli_pytorch.py DIIN_pytorch demo_testing_SNLI --training_completely_on_snli``
