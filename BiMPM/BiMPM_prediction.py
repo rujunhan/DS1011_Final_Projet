@@ -58,9 +58,8 @@ class BiMPM(nn.Module):
                                            args.num_context_layers,
                                            dropout = self.dropout,
                                            bias=False,
-                                           #batch_first= True,
                                            bidirectional=False)
-        self.char_hid = self.init_hidden_chars()
+
 
         ### lstm layer
         self.lstm_s1 = nn.LSTM(self.embed_size+self.char_size,
@@ -75,8 +74,8 @@ class BiMPM(nn.Module):
                                dropout=self.dropout,
                                bidirectional=True)
 
-        self.s1_hid = self.init_hidden(self.batch_size)
-        self.s2_hid = self.init_hidden(self.batch_size)
+        #self.s1_hid = self.init_hidden(self.batch_size)
+        #self.s2_hid = self.init_hidden(self.batch_size)
 
 
         ### dropout layer
@@ -144,6 +143,29 @@ char_size)))
         self.sent_length = ch1.size()[2]
 
         all_char1 = []
+        for ch in range(ch1.size()[2]):
+            ch_emb = self.emb_char(ch1[:,:,ch].squeeze(-1))
+            s1_chr, _ = self.char_representation(ch_emb)
+            # the last element of s1_chr is the last hidden state
+            # we use this as character embedding
+            all_char1.append(s1_chr[:,-1:,].squeeze(1).unsqueeze(0))
+        all_char1 = torch.cat(all_char1, 0)
+
+        # s2
+        self.word_length = ch2.size()[1]
+        self.sent_length = ch2.size()[2]
+
+        all_char2 = []
+        for ch in range(ch2.size()[2]):
+            ch_emb = self.emb_char(ch2[:, :, ch].squeeze(-1))
+            #self.char_hid = self.init_hidden_chars()
+            s2_chr, _ = self.char_representation(ch_emb)
+            all_char2.append(s2_chr[:,-1:,].squeeze(1).unsqueeze(0))
+
+        all_char2 = torch.cat(all_char2, 0)
+
+        """
+        all_char1 = []
         for ch in range(ch1.size()[0]):
             ch_emb = self.emb_char(ch1[ch, :, :].squeeze(0))
 
@@ -167,22 +189,17 @@ char_size)))
             all_char2.append(s2_chr[0].squeeze(0).unsqueeze(1))
 
         all_char2 = torch.cat(all_char2, 1)
-
-        ## Dropout after representation layer
-        #print(s1_emb.size())
-        #print(all_char1.size())
-        #print(s2_emb.size())
-        #print(all_char2.size())
+        """
 
         s1_input = self.dropout_layer(torch.cat([s1_emb, all_char1], 2))
         s2_input = self.dropout_layer(torch.cat([s2_emb, all_char2], 2))
 
-
         ### Context Layer
-        self.s1_hid = self.init_hidden(batch_size)
-        self.s2_hid = self.init_hidden(batch_size)
-        out1, _ = self.lstm_s1(s1_input, self.s1_hid)
-        out2, _ = self.lstm_s1(s2_input, self.s2_hid)
+        #self.s1_hid = self.init_hidden(batch_size)
+        #self.s2_hid = self.init_hidden(batch_size)
+        out1, _ = self.lstm_s1(s1_input)
+        out2, _ = self.lstm_s1(s2_input)
+
 
         
         ### Matching Layer
@@ -245,6 +262,7 @@ def main(args):
     console.setLevel(logging.INFO)
     logger.addHandler(console)
 
+
     for arg in vars(args):
         logger.info(str(arg) + ' ' + str(getattr(args, arg)))
 
@@ -269,6 +287,7 @@ def main(args):
     if args.cuda:
         model.cuda()
 
+    para = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
 
@@ -303,13 +322,13 @@ def main(args):
             predicted = (out.data.max(1)[1]).long().view(-1)
             correct += (predicted == labels.data).sum()
 
-            if batch.start % 100 == 0:
+            if batch.start % 50000 == 0:
                 logger.info("training epoch %s: completed %s %%" % (str(epoch), str(round(100 * batch.start / len(data), 2))))
                 logger.info("current training loss %.3f: " % loss.data.cpu().numpy()[0])
 
         ave_loss = total_loss / n_batch
-        logger.info("average training loss is: %s" % str(ave_loss))
-        losses.append(ave_loss)
+        logger.info("average trainning loss is: %s" % str(ave_loss))
+
         
         train_acc = 100 * correct / len(data)
         train_acc_hist.append(train_acc)
@@ -337,7 +356,6 @@ def main(args):
         logger.info("completed epoch %s, training accuracy is: %s %%, evaluation accuracy is: %s %%" % (epoch, round(train_acc, 2), round(eval_acc, 2)))
         end_time = time.time()
         logger.info("%s seconds elapsed" % str(end_time - start_time))
-
     
     logger.info("training loss history: ")
     logger.info(losses)
@@ -351,7 +369,7 @@ def main(args):
 
     model, _ = load_checkpoint(model, optimizer, best_model_file)
     test_acc = test_model(model, test_batch, args)
-
+    
     logger.info("testing accuracy is: %s %%" % test_acc)
 
 if __name__ == '__main__':
@@ -361,9 +379,11 @@ if __name__ == '__main__':
     parser.add_argument('-num_context_layers', type=int, default=1)
     parser.add_argument('-num_aggr_layers', type=int, default=1)
     parser.add_argument('-batch', type=int, default=60)
-    parser.add_argument('-epochs', type=int, default=10)
+
+    parser.add_argument('-epochs', type=int, default=20)
+
     parser.add_argument('-seed', type=int, default=123)
-    parser.add_argument('-lr', type=float, default=0.001)
+    parser.add_argument('-lr', type=float, default=0.0005)
     parser.add_argument('-lambda_l2', type=float, default=0)
     parser.add_argument('-clipper', type=float, default=5.0)
     parser.add_argument('-num_classes', type=int, default=3)
@@ -391,7 +411,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--log_dir', type=str, default='../log')
 
-    parser.add_argument('--log_fname', type=str, default='gradClamp_combinelayer.log')
+    parser.add_argument('--log_fname', type=str, default='test4.log')
 
     args = parser.parse_args()
 
