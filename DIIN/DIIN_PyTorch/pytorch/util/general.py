@@ -1,3 +1,5 @@
+# We followed the idea from the following reference and implemented it in Pytorch: https://github.com/YichenGong/Densely-Interactive-Inference-Network/blob/master/python/my/tensorflow/general.py
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable

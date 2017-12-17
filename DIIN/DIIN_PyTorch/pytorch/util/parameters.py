@@ -1,3 +1,5 @@
+# We use this code from: https://github.com/YichenGong/Densely-Interactive-Inference-Network/blob/master/python/util/parameters.py to implement our Pytorch version.
+
 """
 
 The hyperparameters for a model are defined here. Arguments like the type of model, model name, paths to data, logs etc. are also defined here.

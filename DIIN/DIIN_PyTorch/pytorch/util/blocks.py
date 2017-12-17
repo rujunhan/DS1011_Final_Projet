@@ -1,12 +1,10 @@
+# We followed the idea of the following reference but implemented it in Pytorch: https://github.com/YichenGong/Densely-Interactive-Inference-Network/blob/master/python/util/blocks.py
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
-
-
-
-
 
 def length(sequence):
     """

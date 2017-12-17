@@ -1,3 +1,5 @@
+# We followed the idea of the following reference and implemented it in Pytorch: https://github.com/YichenGong/Densely-Interactive-Inference-Network 
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -6,8 +8,7 @@ import numpy as np
 import collections
 from util import blocks
 from util.general import flatten, reconstruct, exp_mask
-import DenseNet
-import math
+from .DenseNet import DenseNet
 
 class DIIN(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
@@ -106,7 +107,7 @@ class DIIN(nn.Module):
         premise_final = self.dense_net(fm)
 
         premise_final = premise_final.view(self.config.batch_size, -1)
-
+        print("premise_final", premise_final.size())
         logits = linear(self.final_linear, [premise_final], self.pred_size ,True, bias_start=0.0, squeeze=False, wd=self.config.wd, input_drop_prob=self.config.keep_rate,
                                 is_train=self.training)
 
@@ -340,27 +341,3 @@ def bi_attention_mx(config, is_train, p, h, p_mask=None, h_mask=None): #[N, L, 2
     h_logits = p_aug * h_aug # [70,48,48,448]
     h_logits = h_logits.view(config.batch_size, -1, PL, HL)
     return h_logits 
-
-class Dense_net_block(nn.Module):
-    def __init__(self, outChannels, growth_rate, kernel_size):
-        super(Dense_net_block, self).__init__()
-        self.conv = nn.Conv2d(outChannels, growth_rate, kernel_size=kernel_size, bias=False, padding=1)
-        #print('block',outChannels, growth_rate)
-
-    def forward(self, x):
-        ft = F.relu(self.conv(x))
-        #print("ft", ft.size())
-        out = torch.cat((x, ft), dim=1)
-        return out
-
-class Dense_net_transition(nn.Module):
-    def __init__(self, nChannels, outChannels):
-        super(Dense_net_transition, self).__init__()
-        self.conv = nn.Conv2d(nChannels, outChannels, kernel_size=1, bias=False)
-        #print('trans',nChannels, outChannels)
-
-    def forward(self, x):
-        out = self.conv(x)
-        out = F.max_pool2d(out, (2,2), (2,2), padding=0)
-        #print('trans',out.size())
-        return out

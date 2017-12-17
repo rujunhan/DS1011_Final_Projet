@@ -1,3 +1,6 @@
+# We followed the idea of this reference and implemented it in Pytorch: https://github.com/YichenGong/Densely-Interactive-Inference-Network/blob/master/python/train_mnli.py
+
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -382,7 +385,11 @@ def classify(examples, completed, batch_size, model, loss_):
 
         cost = loss_(logit, minibatch_labels).data[0]
         costs += cost
-        logits = np.vstack([logits, logit.data.numpy()])
+
+        if config.cuda:
+            logits = np.vstack([logits, logit.data.cpu().numpy()])
+        else:
+            logits = np.vstack([logits, logit.data.numpy()])
     return genres, np.argmax(logits[1:], axis=1), costs
 
 def generate_predictions_with_id(path, examples, completed, batch_size, model, loss_):
@@ -462,7 +469,7 @@ elif test == False:
 
     logger.Log("Confusion Matrix on test_snli\n{}".format(confmx))
     logger.Log("Acc on SNLI test-set: %f" %(test_acc_snli))
-
+"""
     logger.Log("Generating SNLI dev pred")
     dev_snli_path = os.path.join(FIXED_PARAMETERS["log_path"], "snli_dev_{}.csv".format(modname))
     generate_predictions_with_id(dev_snli_path, dev_snli, completed, batch_size, model, loss)
@@ -479,5 +486,5 @@ else:
         logger.Log("Generating SNLI test pred")
         test_snli_path = os.path.join(FIXED_PARAMETERS["log_path"], "snli_test_{}.csv".format(modname))
         generate_predictions_with_id(test_snli_path, test_snli, completed, batch_size, model, loss)
-    
+""" 
     
