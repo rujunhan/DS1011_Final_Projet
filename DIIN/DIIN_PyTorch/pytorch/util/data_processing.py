@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# This code if from: https://github.com/YichenGong/Densely-Interactive-Inference-Network/blob/master/python/util/data_processing.py. We just use it to implement our Pytorch version DIIN.
+
 import numpy as np
 import re
 import random

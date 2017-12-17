@@ -1,9 +1,12 @@
+# We followed the idea from the following reference but implemented it in Pytorch: https://github.com/YichenGong/Densely-Interactive-Inference-Network/blob/master/python/models/DIIN.py 
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
 import collections
+import math
 
 class Dense_net_block(nn.Module):
     def __init__(self, outChannels, growth_rate, kernel_size):

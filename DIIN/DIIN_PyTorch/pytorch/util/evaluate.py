@@ -1,3 +1,5 @@
+# We use the code from: https://github.com/YichenGong/Densely-Interactive-Inference-Network/blob/master/python/util/evaluate.py to implement our Pytorch version.
+
 from util.data_processing import LABEL_MAP
 import util.parameters as params
 

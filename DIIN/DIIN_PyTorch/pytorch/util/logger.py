@@ -1,3 +1,5 @@
+# We use the code from: https://github.com/YichenGong/Densely-Interactive-Inference-Network/blob/master/python/util/logger.pyto implement our Pytorch version.
+
 import datetime
 import sys
 import json
